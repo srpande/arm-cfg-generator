@@ -68,6 +68,13 @@ void find_breaks()
 		}
 	}
 	
+	// Also insert breaks at the "pure links"
+	for(map<string,int>::iterator iterator = my_references.begin(); iterator != my_references.end(); iterator++)
+	{
+		if(isdigit(iterator->first[1]))
+			my_breaks.push_back(iterator->second);
+	}
+	
 	sort(my_breaks.begin(), my_breaks.end(), less<int>());
 	sort(my_branches.begin(), my_branches.end(), less<int>());
 	
@@ -155,10 +162,14 @@ void list_structs()
 	for(i = 1; i < my_breaks.size(); i++)
 	{
 		int is_cmp = 0;
+		int found_end = 0;
+		int found_memory = 0;
+		string color = "";
 		
 		//cout << "DEBUG: " << my_breaks.at(i) << " " << my_lines.size() << endl;
 		string my_shape, my_alignement;
         string my_instr = get_instr(my_lines.at(my_breaks.at(i-1)));
+        
 		if(is_instr(my_instr,"cmp") || is_instr(my_instr.c_str(),"cmn") || is_instr(my_instr.c_str(),"tst"))
 		{
 			is_cmp = 1;
@@ -175,14 +186,30 @@ void list_structs()
 			my_alignement = "\\l";
 		}
 		
-		cout << "\tnode" << i << " [shape=" << my_shape << ", label = \"";
+		cout << "\tnode" << i << " [" << color << "shape=" << my_shape << ", label =\"";
 			
+		// List all the instructions in the block, color them if memory access.
 		for(k = my_breaks.at(i-1); k < my_breaks.at(i); k++)
 		{
 			cout << my_lines.at(k) << my_alignement;
+			
+			// Detect end of function
+			if(!found_end && lines_containes(my_lines.at(k),"pop","pc"))
+				found_end = 1;
+			if(!found_memory &&
+					(!get_instr(my_lines.at(k)).compare("str")
+						|| !get_instr(my_lines.at(k)).compare("ldr")))
+				found_memory = 1;
 		}
 		
-		cout << "\"];" << endl;
+		if(found_memory)
+			color = ", color=blue";
+		else if(i == 1)
+			color = ", color=green";
+		else if(found_end)
+			color = ", color=red";
+		
+		cout << "\"" << color << "];" << endl;
 	}
 }
 
@@ -218,7 +245,7 @@ int get_struct_index(int line)
 	return -1;
 }
 
-void print_lines_with_bb()
+int print_lines_with_bb()
 {
 	int k = 0, l = 0, m = 0;
 	
