@@ -1,5 +1,11 @@
 #! /bin/bash
 
-cat snippets/bit-reverse/krukar.s | ./arm-cfg > test.txt
-dot -Tps2 test.txt -o test.eps
-ps2pdf test.eps
+for file in $(ls  snippets/bit-reverse/*.s)
+do
+	cat $file | ./arm-cfg > temp.txt
+	dot -Tps temp.txt -o $file.gs
+	#ps2pdf snippits/bit-reverse/$file.eps
+done
+
+rm temp.*
+
