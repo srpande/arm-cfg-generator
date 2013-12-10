@@ -60,6 +60,10 @@ void find_breaks()
 				my_breaks.push_back(line_index+1);
 			}
 		}
+		else if(string(line_c).find("global") != std::string::npos)
+		{
+			my_breaks.push_back(line_index+1);
+		}
 		else if(is_instr(get_instr(line_c),"tst")
 					|| is_instr(get_instr(line_c),"cmp")
                     || is_instr(get_instr(line_c),"cmn"))
@@ -103,6 +107,10 @@ void load_file ()
 					{
 						string my_ref = string(&line_c[1]);
 						my_references.insert(pair<string,int>(my_ref,my_lines.size()));
+					}
+					else if (string(line_c).find("global") != std::string::npos)
+					{
+						my_lines.push_back(&line_c[1]);
 					}
 					break;
 				}
@@ -170,10 +178,10 @@ void list_structs()
 		string my_shape, my_alignement;
         string my_instr = get_instr(my_lines.at(my_breaks.at(i-1)));
         
-		if(is_instr(my_instr,"cmp") || is_instr(my_instr.c_str(),"cmn") || is_instr(my_instr.c_str(),"tst"))
-		{
+		if(is_instr(my_instr,"cmp")
+			|| is_instr(my_instr.c_str(),"cmn")
+			|| is_instr(my_instr.c_str(),"tst"))
 			is_cmp = 1;
-		}
 		
 		if(is_cmp)
 		{
@@ -186,26 +194,34 @@ void list_structs()
 			my_alignement = "\\l";
 		}
 		
-		cout << "\tnode" << i << " [" << color << "shape=" << my_shape << ", label =\"";
-			
-		// List all the instructions in the block, color them if memory access.
-		for(k = my_breaks.at(i-1); k < my_breaks.at(i); k++)
+		// First box 
+		if(i == 1)
 		{
-			cout << my_lines.at(k) << my_alignement;
+			color = ", color=green";
+			string my_name = get_arg(my_lines.at(0), 1);
+			cout << "\tnode1 [shape=box, label =\"" << my_name;
+		}
+		else
+		{
+			cout << "\tnode" << i << " [shape=" << my_shape << ", label =\"";
 			
-			// Detect end of function
-			if(!found_end && lines_containes(my_lines.at(k),"pop","pc"))
-				found_end = 1;
-			if(!found_memory &&
-					(!get_instr(my_lines.at(k)).compare("str")
-						|| !get_instr(my_lines.at(k)).compare("ldr")))
-				found_memory = 1;
+			// List all the instructions in the block, color them if memory access.
+			for(k = my_breaks.at(i-1); k < my_breaks.at(i); k++)
+			{
+				cout << my_lines.at(k) << my_alignement;
+			
+				// Detect end of function
+				if(!found_end && line_containes(my_lines.at(k),"pop","pc"))
+					found_end = 1;
+				if(!found_memory
+						&& (!get_instr(my_lines.at(k)).compare("str")
+							|| !get_instr(my_lines.at(k)).compare("ldr")))
+					found_memory = 1;
+			}
 		}
 		
 		if(found_memory)
 			color = ", color=blue";
-		else if(i == 1)
-			color = ", color=green";
 		else if(found_end)
 			color = ", color=red";
 		
@@ -326,12 +342,11 @@ void print_clean_file ()
 	
 	while(getline(cin, line)) {
 		line_c = trim_white_spaces((char*)line.c_str());
-		cout << line << endl;
-		if(line_c[0] != '@')
-		{
-			
-		}
-		cout << line_c << endl;
+
+		if(line_c[0] != '@'
+			&& line_c[0] != '.'
+			&& string(line_c).find(':') == std::string::npos)
+				cout << line_c << endl;
 	}
 }
 
