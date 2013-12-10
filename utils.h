@@ -181,7 +181,7 @@ static inline int get_value(const char* arg) {
 	@return stripped vector
 */
 template <class T>
-void clean_vector(vector<T> *my_vector)
+static void clean_vector(vector<T> *my_vector)
 {
 	my_vector->erase( unique( my_vector->begin(), my_vector->end() ), my_vector->end() );
 }
@@ -197,7 +197,7 @@ string get_instr(string arg1)
 	return string(instr);
 }
 
-int is_instr(string arg1, string arg2)
+static int is_instr(string arg1, string arg2)
 {
 	int index = 0;
 	int length = arg2.length();
@@ -214,6 +214,25 @@ int is_instr(string arg1, string arg2)
 	}	
 	return 1;
 }
+
+static string get_arg(const string stnc, int location)
+{
+	int i;
+	vector<string> my_split = split(stnc);
+	if(location <= my_split.size())
+		return my_split.at(location);
+	return "";
+}
+
+static int line_containes(string line, string arg1, string arg2)
+{
+	if(line.find(arg1) == -1)
+		return 0;
+	if(line.find(arg2) == -1)
+		return 0;
+	return 1;
+}
+
 
 #endif
 
