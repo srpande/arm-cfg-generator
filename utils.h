@@ -191,7 +191,7 @@ string get_instr(string arg1)
 	int i = 0;
 	char instr[8];
 	const char *my_index = arg1.c_str();
-	while(isalpha(my_index[i])) i++;
+	while(isalpha(my_index[i]) || my_index[i] == '.') i++;
 	memcpy(&instr[0], my_index, i);
 	instr[i] = '\0';
 	return string(instr);
@@ -224,11 +224,13 @@ static string get_arg(const string stnc, int location)
 	return "";
 }
 
-static int line_containes(string line, string arg1, string arg2)
+static int line_containes(string line, string arg1, string arg2, string arg3)
 {
 	if(line.find(arg1) == -1)
 		return 0;
 	if(line.find(arg2) == -1)
+		return 0;
+	if(line.find(arg3) == -1)
 		return 0;
 	return 1;
 }

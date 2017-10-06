@@ -17,7 +17,7 @@
  * along with this program; if not, see
  * <http://www.gnu.org/licenses/gpl-2.0.html>
  */
- 
+
 
 #include <iostream>
 #include <fstream>
@@ -36,6 +36,7 @@ vector<int> my_breaks;
 vector<int> my_branches;
 map<string,int> my_references;
 vector<string> my_lines;
+bool is_llvm = false;
 
 void find_breaks()
 {
@@ -49,33 +50,38 @@ void find_breaks()
 		const char *line_c = my_lines.at(line_index).c_str();
 		if(line_c[0] == 'b')
 		{
-			// "bl" are jumps to other functions, we are not following these...
-			if(line_c[1] == 'l' && !isalpha(line_c[2]))
-			{
-				my_breaks.push_back(line_index);
-			}
-			else
+			// "bl" and "blr" are jumps to other functions, we are not following these...
+      // Those are just calls.
+			if(!((line_c[1] == 'l' && !isalpha(line_c[2])) ||
+         (line_c[1] == 'l' && line_c[2] == 'r' && !isalpha(line_c[3]))))
 			{
 				my_branches.push_back(line_index);
 				my_breaks.push_back(line_index+1);
 			}
 		}
-		else if(string(line_c).find("global") != std::string::npos)
+		else if((line_c[0] == 'c' || line_c[0] == 't') && line_c[1] == 'b' && (line_c[2] == 'z' || line_c[2] == 'n')) {
+				my_branches.push_back(line_index);
+				my_breaks.push_back(line_index+1);
+			}
+		else if((string(line_c).find("global") != std::string::npos) ||
+            (string(line_c).find("globl") != std::string::npos))
 		{
 			my_breaks.push_back(line_index+1);
 		}
+		/* Traditional CFG in compiler does not have a separate basic blocks for compare.
 		else if(is_instr(get_instr(line_c),"tst")
 					|| is_instr(get_instr(line_c),"cmp")
                     || is_instr(get_instr(line_c),"cmn"))
 		{
 			my_breaks.push_back(line_index);
 		}
+    */
 	}
 	
 	// Also insert breaks at the "pure links"
 	for(map<string,int>::iterator iterator = my_references.begin(); iterator != my_references.end(); iterator++)
 	{
-		if(isdigit(iterator->first[1]))
+		if(isdigit(iterator->first[1]) || (is_llvm && isdigit(iterator->first[3])))
 			my_breaks.push_back(iterator->second);
 	}
 	
@@ -98,17 +104,24 @@ void load_file ()
 	
 	while(getline(cin, line)) {
 		line_c = trim_white_spaces((char*)line.c_str());
+    if (!is_llvm && strstr(line_c, "// BB#0:"))
+      is_llvm = true;
 		switch(line_c[0])
 		{
 			case '@' : break;
 			case '.' :
 				{
-					if(line_c[1] == 'L')
+					if((!is_llvm && line_c[1] == 'L') || (is_llvm && line_c[1] == 'L' && line_c[2] == 'B'))
 					{
+
 						string my_ref = string(&line_c[1]);
-						my_references.insert(pair<string,int>(my_ref,my_lines.size()));
+            int i = 0;
+            while(my_ref[i]  != ':') i++;
+            string my_ref_str = my_ref.substr(0, i);
+						my_references.insert(pair<string,int>(my_ref_str, my_lines.size()));
 					}
-					else if (string(line_c).find("global") != std::string::npos)
+					else if ((string(line_c).find("global") != std::string::npos) ||
+					         (string(line_c).find("globl") != std::string::npos))
 					{
 						my_lines.push_back(&line_c[1]);
 					}
@@ -116,7 +129,10 @@ void load_file ()
 				}
 			default :
 				{
-					if(line_c[strlen(line_c)-1] != ':')
+					if(line_c[strlen(line_c)-1] != ':' &&
+							!line.empty() &&
+							(strchr(line_c, '@') == NULL) &&
+							(!strstr(line_c, "-- End function")))
 					{
 						my_lines.push_back(line_c);
 					}
@@ -169,15 +185,16 @@ void list_structs()
 	
 	for(i = 1; i < my_breaks.size(); i++)
 	{
-		int is_cmp = 0;
+		//int is_cmp = 0;
 		int found_end = 0;
 		int found_memory = 0;
 		string color = "";
-		
+
 		//cout << "DEBUG: " << my_breaks.at(i) << " " << my_lines.size() << endl;
 		string my_shape, my_alignement;
         string my_instr = get_instr(my_lines.at(my_breaks.at(i-1)));
-        
+
+		/* Traditional CFG in compiler does not have a separate basic blocks for compare.
 		if(is_instr(my_instr,"cmp")
 			|| is_instr(my_instr.c_str(),"cmn")
 			|| is_instr(my_instr.c_str(),"tst"))
@@ -190,11 +207,11 @@ void list_structs()
 		}
 		else
 		{
+		*/
 			my_shape = "box";
 			my_alignement = "\\l";
-		}
-		
-		// First box 
+		//}
+		// First box
 		if(i == 1)
 		{
 			color = ", color=green";
@@ -211,7 +228,7 @@ void list_structs()
 				cout << my_lines.at(k) << my_alignement;
 			
 				// Detect end of function
-				if(!found_end && line_containes(my_lines.at(k),"pop","pc"))
+				if(!found_end && line_containes(my_lines.at(k),"pop","pc","ret"))
 					found_end = 1;
 				if(!found_memory
 						&& (!get_instr(my_lines.at(k)).compare("str")
@@ -236,7 +253,12 @@ int convert_reference(const char *my_ref)
 	string my_ref_str;
 	
 	while(my_ref[i] != '.') i++;
-	my_ref_str = string(&my_ref[++i]);
+  if (is_llvm) {
+    while(my_ref[i] != 'L') i++;
+	  my_ref_str = string(&my_ref[i]);
+  } else {
+	  my_ref_str = string(&my_ref[++i]);
+  }
 	
 	iter = my_references.find(my_ref_str);
 
@@ -292,12 +314,10 @@ void list_arrows()
 	{
 		//cout << "Verifying branch #" << i << " at " << my_branches.at(i) << endl;
 		int my_ref = convert_reference(my_lines.at(my_branches.at(i)).c_str());
-		
+
 		int my_struct_index_dest = get_struct_index(my_ref);
 		int my_struct_index_source = get_struct_index(my_branches.at(i));
 		
-		//cout << "s:" << my_struct_index_dest << " d:" << my_struct_index_source << " " << my_ref << endl;
-
 		if(my_struct_index_dest != -1 && my_struct_index_source != -1)
 		{
 			ss.str("");
@@ -314,9 +334,11 @@ void list_arrows()
 	for(i = 1; i < my_breaks.size(); i++)
 	{
 		if(!is_instr(get_instr(my_lines.at(my_breaks.at(i)-1)),"b")
-			&& !is_instr(get_instr(my_lines.at(my_breaks.at(i)-1)),"pop"))
+			&& !is_instr(get_instr(my_lines.at(my_breaks.at(i)-1)),"pop")
+			&& !is_instr(get_instr(my_lines.at(my_breaks.at(i)-1)),"ret"))
 		{
 			int my_struct_index_dest = get_struct_index(my_breaks.at(i));
+			//cout << " my_struct_index_dest" << my_struct_index_dest << ";";
 			ss.str("");
 			ss << "\tnode" << (my_struct_index_dest-1) << " -> node" << my_struct_index_dest << ";";
 			my_arrows.push_back(ss.str());
@@ -330,7 +352,6 @@ void list_arrows()
 	{
 		cout << my_arrows.at(i) << endl;
 	}
-	
 }
 
 void print_clean_file ()
@@ -388,6 +409,5 @@ int main(int argc, const char** argv)
 	cout << endl;
 	list_arrows();
 	print_trailer();
-
-	return 0; 
+	return 0;
 }
