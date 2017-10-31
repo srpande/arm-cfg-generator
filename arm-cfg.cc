@@ -57,9 +57,12 @@ void find_breaks()
 {
 	int line_index;
 	
-	// Add the start
+	// Add the start - name of the function.
 	my_breaks.push_back(0);
 	
+	// Add the first BB, always has only one predecessor.
+	my_breaks.push_back(1);
+
 	for(line_index = 0; line_index < my_lines.size(); line_index++)
 	{
 		const char *line_c = my_lines.at(line_index).c_str();
@@ -187,7 +190,7 @@ void list_structs()
 
 		//cout << "DEBUG: " << my_breaks.at(i) << " " << my_lines.size() << endl;
 		string my_shape, my_alignement;
-        string my_instr = get_instr(my_lines.at(my_breaks.at(i-1)));
+		string my_instr = get_instr(my_lines.at(my_breaks.at(i-1)));
 
 		/* Traditional CFG in compiler does not have a separate basic blocks for compare.
 		if(is_instr(my_instr,"cmp")
