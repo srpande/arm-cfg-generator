@@ -57,7 +57,7 @@ static inline string to_integer(cypher my_cypher) {
 */
 static vector<string> split_plus(string my_string) {
 	vector<string> my_splitted_string;
-    
+
 	char my_command[64];
 	int length = my_string.length();
 	int end = 0;
